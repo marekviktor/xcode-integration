@@ -15,7 +15,7 @@ interface XcodeConfig {
 async function findXcodeProject(startPath: string): Promise<string | null> {
     try {
         const files = await fs.promises.readdir(startPath);
-        const xcodeProj = files.find(file => file.endsWith('.xcodeproj'));
+        const xcodeProj = files.find((file) => file.endsWith('.xcodeproj'));
         if (xcodeProj) {
             return path.join(startPath, xcodeProj);
         }
@@ -33,7 +33,9 @@ async function findXcodeProject(startPath: string): Promise<string | null> {
     }
 }
 
-async function getConfiguration(context: vscode.ExtensionContext): Promise<XcodeConfig> {
+async function getConfiguration(
+    context: vscode.ExtensionContext
+): Promise<XcodeConfig> {
     const config = vscode.workspace.getConfiguration('xcodeIntegration');
     let projectPath = config.get<string>('projectPath');
     let xcodeProjectPath = config.get<string>('xcodeProjectPath');
@@ -48,7 +50,11 @@ async function getConfiguration(context: vscode.ExtensionContext): Promise<Xcode
             // Auto-detect project path
             if (!projectPath) {
                 projectPath = wsPath;
-                await config.update('projectPath', projectPath, vscode.ConfigurationTarget.Workspace);
+                await config.update(
+                    'projectPath',
+                    projectPath,
+                    vscode.ConfigurationTarget.Workspace
+                );
             }
 
             // Auto-detect Xcode project
@@ -56,7 +62,11 @@ async function getConfiguration(context: vscode.ExtensionContext): Promise<Xcode
                 const foundXcodeProj = await findXcodeProject(wsPath);
                 if (foundXcodeProj) {
                     xcodeProjectPath = foundXcodeProj;
-                    await config.update('xcodeProjectPath', xcodeProjectPath, vscode.ConfigurationTarget.Workspace);
+                    await config.update(
+                        'xcodeProjectPath',
+                        xcodeProjectPath,
+                        vscode.ConfigurationTarget.Workspace
+                    );
                 }
             }
         }
@@ -68,7 +78,11 @@ async function getConfiguration(context: vscode.ExtensionContext): Promise<Xcode
             const { stdout } = await execAsync('git config user.name');
             authorName = stdout.trim();
             if (authorName) {
-                await config.update('authorName', authorName, vscode.ConfigurationTarget.Global);
+                await config.update(
+                    'authorName',
+                    authorName,
+                    vscode.ConfigurationTarget.Global
+                );
             }
         } catch (error) {
             console.error('Error getting Git user name:', error);
@@ -84,233 +98,293 @@ async function getConfiguration(context: vscode.ExtensionContext): Promise<Xcode
         );
 
         if (result === 'Configure') {
-            await vscode.commands.executeCommand('workbench.action.openSettings', 'xcodeIntegration');
+            await vscode.commands.executeCommand(
+                'workbench.action.openSettings',
+                'xcodeIntegration'
+            );
         }
     }
 
     return {
         projectPath: projectPath || '',
         xcodeProjectPath: xcodeProjectPath || '',
-        authorName: authorName || ''
+        authorName: authorName || '',
     };
 }
 
 export function activate(context: vscode.ExtensionContext) {
     // Register command for new Swift file
-    let newSwiftFile = vscode.commands.registerCommand('xcode-integration.newSwiftFile', async (uri: vscode.Uri) => {
-        try {
-            const config = await getConfiguration(context);
-            if (!config.projectPath || !config.xcodeProjectPath) {
-                throw new Error('Project paths not configured');
-            }
-
-            // Get target directory
-            const targetDir = uri?.fsPath ||
-                (vscode.window.activeTextEditor?.document.uri.fsPath
-                    ? path.dirname(vscode.window.activeTextEditor.document.uri.fsPath)
-                    : vscode.workspace.workspaceFolders?.[0].uri.fsPath);
-
-            if (!targetDir) {
-                throw new Error('No target directory selected');
-            }
-
-            // Ask for file name
-            const fileName = await vscode.window.showInputBox({
-                prompt: "Enter the name of the new Swift file",
-                placeHolder: "MyNewFile",
-                validateInput: (value: string) => {
-                    if (!value) { return 'File name is required'; }
-                    if (!/^[a-zA-Z][a-zA-Z0-9_]*$/.test(value)) {
-                        return 'Invalid file name. Use alphanumeric characters and underscores, start with a letter';
-                    }
-                    return null;
+    let newSwiftFile = vscode.commands.registerCommand(
+        'xcode-integration.newSwiftFile',
+        async (uri: vscode.Uri) => {
+            try {
+                const config = await getConfiguration(context);
+                if (!config.projectPath || !config.xcodeProjectPath) {
+                    throw new Error('Project paths not configured');
                 }
-            });
 
-            if (!fileName) {
-                return;
+                // Get target directory
+                const targetDir =
+                    uri?.fsPath ||
+                    (vscode.window.activeTextEditor?.document.uri.fsPath
+                        ? path.dirname(
+                              vscode.window.activeTextEditor.document.uri.fsPath
+                          )
+                        : vscode.workspace.workspaceFolders?.[0].uri.fsPath);
+
+                if (!targetDir) {
+                    throw new Error('No target directory selected');
+                }
+
+                // Ask for file name
+                const fileName = await vscode.window.showInputBox({
+                    prompt: 'Enter the name of the new Swift file',
+                    placeHolder: 'MyNewFile',
+                    validateInput: (value: string) => {
+                        if (!value) {
+                            return 'File name is required';
+                        }
+                        if (!/^[a-zA-Z][a-zA-Z0-9_]*$/.test(value)) {
+                            return 'Invalid file name. Use alphanumeric characters and underscores, start with a letter';
+                        }
+                        return null;
+                    },
+                });
+
+                if (!fileName) {
+                    return;
+                }
+
+                const fullPath = path.join(targetDir, `${fileName}.swift`);
+
+                // Create empty file
+                fs.writeFileSync(fullPath, '');
+
+                // Show template picker and add to Xcode
+                const templates = [
+                    'SwiftUI View',
+                    'Swift File',
+                    'Protocol',
+                    'Class',
+                    'ViewModel',
+                ];
+                const selectedTemplate = await vscode.window.showQuickPick(
+                    templates,
+                    {
+                        placeHolder: 'Select a template',
+                    }
+                );
+
+                if (!selectedTemplate) {
+                    fs.unlinkSync(fullPath); // Clean up if cancelled
+                    return;
+                }
+
+                // Add to Xcode
+                await execAsync(
+                    `XCODE_AUTHOR_NAME="${config.authorName}" XCODE_PROJECT_PATH="${config.xcodeProjectPath}" PROJECT_PATH="${config.projectPath}" ruby "${context.extensionPath}/scripts/add_to_xcode.rb" "${fullPath}" "${selectedTemplate}"`
+                );
+                // Open the new file
+                const doc = await vscode.workspace.openTextDocument(fullPath);
+                await vscode.window.showTextDocument(doc);
+
+                vscode.window.showInformationMessage(
+                    `Created ${fileName}.swift with ${selectedTemplate} template`
+                );
+            } catch (error) {
+                vscode.window.showErrorMessage(
+                    `Error: ${error instanceof Error ? error.message : String(error)}`
+                );
             }
-
-            const fullPath = path.join(targetDir, `${fileName}.swift`);
-
-            // Create empty file
-            fs.writeFileSync(fullPath, '');
-
-            // Show template picker and add to Xcode
-            const templates = ['SwiftUI View', 'Swift File', 'Protocol', 'Class', 'ViewModel'];
-            const selectedTemplate = await vscode.window.showQuickPick(templates, {
-                placeHolder: 'Select a template'
-            });
-
-            if (!selectedTemplate) {
-                fs.unlinkSync(fullPath); // Clean up if cancelled
-                return;
-            }
-
-            // Add to Xcode
-            await execAsync(`XCODE_AUTHOR_NAME="${config.authorName}" XCODE_PROJECT_PATH="${config.xcodeProjectPath}" PROJECT_PATH="${config.projectPath}" ruby "${context.extensionPath}/scripts/add_to_xcode.rb" "${fullPath}" "${selectedTemplate}"`);
-            // Open the new file
-            const doc = await vscode.workspace.openTextDocument(fullPath);
-            await vscode.window.showTextDocument(doc);
-
-            vscode.window.showInformationMessage(`Created ${fileName}.swift with ${selectedTemplate} template`);
-
-        } catch (error) {
-            vscode.window.showErrorMessage(`Error: ${error instanceof Error ? error.message : String(error)}`);
         }
-    });
+    );
 
     // Register command for new folder
-    let newFolder = vscode.commands.registerCommand('xcode-integration.newFolder', async (uri: vscode.Uri) => {
-        try {
-            const config = await getConfiguration(context);
-            if (!config.projectPath || !config.xcodeProjectPath) {
-                throw new Error('Project paths not configured');
-            }
-
-            // Get target directory
-            const targetDir = uri?.fsPath ||
-                (vscode.window.activeTextEditor?.document.uri.fsPath
-                    ? path.dirname(vscode.window.activeTextEditor.document.uri.fsPath)
-                    : vscode.workspace.workspaceFolders?.[0].uri.fsPath);
-
-            if (!targetDir) {
-                throw new Error('No target directory selected');
-            }
-
-            // Ask for folder name
-            const folderName = await vscode.window.showInputBox({
-                prompt: "Enter the name of the new folder",
-                placeHolder: "MyNewFolder",
-                validateInput: (value: string) => {
-                    if (!value) { return 'Folder name is required'; }
-                    if (!/^[a-zA-Z][a-zA-Z0-9_]*$/.test(value)) {
-                        return 'Invalid folder name. Use alphanumeric characters and underscores, start with a letter';
-                    }
-                    return null;
+    let newFolder = vscode.commands.registerCommand(
+        'xcode-integration.newFolder',
+        async (uri: vscode.Uri) => {
+            try {
+                const config = await getConfiguration(context);
+                if (!config.projectPath || !config.xcodeProjectPath) {
+                    throw new Error('Project paths not configured');
                 }
-            });
 
-            if (!folderName) {
-                return;
+                // Get target directory
+                const targetDir =
+                    uri?.fsPath ||
+                    (vscode.window.activeTextEditor?.document.uri.fsPath
+                        ? path.dirname(
+                              vscode.window.activeTextEditor.document.uri.fsPath
+                          )
+                        : vscode.workspace.workspaceFolders?.[0].uri.fsPath);
+
+                if (!targetDir) {
+                    throw new Error('No target directory selected');
+                }
+
+                // Ask for folder name
+                const folderName = await vscode.window.showInputBox({
+                    prompt: 'Enter the name of the new folder',
+                    placeHolder: 'MyNewFolder',
+                    validateInput: (value: string) => {
+                        if (!value) {
+                            return 'Folder name is required';
+                        }
+                        if (!/^[a-zA-Z][a-zA-Z0-9_]*$/.test(value)) {
+                            return 'Invalid folder name. Use alphanumeric characters and underscores, start with a letter';
+                        }
+                        return null;
+                    },
+                });
+
+                if (!folderName) {
+                    return;
+                }
+
+                const fullPath = path.join(targetDir, folderName);
+
+                // Create folder
+                fs.mkdirSync(fullPath, { recursive: true });
+
+                // Add to Xcode
+                await execAsync(
+                    `XCODE_AUTHOR_NAME="${config.authorName}" XCODE_PROJECT_PATH="${config.xcodeProjectPath}" PROJECT_PATH="${config.projectPath}" ruby "${context.extensionPath}/scripts/add_group_to_xcode.rb" "${fullPath}"`
+                );
+
+                vscode.window.showInformationMessage(
+                    `Created folder ${folderName} and added to Xcode`
+                );
+            } catch (error) {
+                vscode.window.showErrorMessage(
+                    `Error: ${error instanceof Error ? error.message : String(error)}`
+                );
             }
-
-            const fullPath = path.join(targetDir, folderName);
-
-            // Create folder
-            fs.mkdirSync(fullPath, { recursive: true });
-
-            // Add to Xcode
-            await execAsync(`XCODE_AUTHOR_NAME="${config.authorName}" XCODE_PROJECT_PATH="${config.xcodeProjectPath}" PROJECT_PATH="${config.projectPath}" ruby "${context.extensionPath}/scripts/add_group_to_xcode.rb" "${fullPath}"`);
-
-            vscode.window.showInformationMessage(`Created folder ${folderName} and added to Xcode`);
-
-        } catch (error) {
-            vscode.window.showErrorMessage(`Error: ${error instanceof Error ? error.message : String(error)}`);
         }
-    });
+    );
 
     // Register command for deleting Swift file
-    let deleteFile = vscode.commands.registerCommand('xcode-integration.deleteFile', async (uri: vscode.Uri) => {
-        try {
-            const config = await getConfiguration(context);
-            if (!config.projectPath || !config.xcodeProjectPath) {
-                throw new Error('Project paths not configured');
-            }
+    let deleteFile = vscode.commands.registerCommand(
+        'xcode-integration.deleteFile',
+        async (uri: vscode.Uri) => {
+            try {
+                const config = await getConfiguration(context);
+                if (!config.projectPath || !config.xcodeProjectPath) {
+                    throw new Error('Project paths not configured');
+                }
 
-            const filePath = uri.fsPath;
+                const filePath = uri.fsPath;
 
-            // Confirm deletion
-            const fileName = path.basename(filePath);
-            const confirmed = await vscode.window.showWarningMessage(
-                `Are you sure you want to delete '${fileName}'? This will remove it from both the filesystem and Xcode project.`,
-                { modal: true },
-                'Delete',
-                'Cancel'
-            );
-
-            if (confirmed !== 'Delete') {
-                return;
-            }
-
-            // Show progress
-            await vscode.window.withProgress({
-                location: vscode.ProgressLocation.Notification,
-                title: `Deleting ${fileName}`,
-                cancellable: false
-            }, async (progress) => {
-                // Execute delete script
-                const { stdout, stderr } = await execAsync(
-                    `XCODE_PROJECT_PATH="${config.xcodeProjectPath}" PROJECT_PATH="${config.projectPath}" ruby "${context.extensionPath}/scripts/delete_from_xcode.rb" "${filePath}"`
+                // Confirm deletion
+                const fileName = path.basename(filePath);
+                const confirmed = await vscode.window.showWarningMessage(
+                    `Are you sure you want to delete '${fileName}'? This will remove it from both the filesystem and Xcode project.`,
+                    { modal: true },
+                    'Delete',
+                    'Cancel'
                 );
 
-                if (stderr) {
-                    console.error('Delete script stderr:', stderr);
+                if (confirmed !== 'Delete') {
+                    return;
                 }
-                console.log('Delete script stdout:', stdout);
 
-                // Refresh explorer
-                await vscode.commands.executeCommand('workbench.files.action.refreshFilesExplorer');
-            });
+                // Show progress
+                await vscode.window.withProgress(
+                    {
+                        location: vscode.ProgressLocation.Notification,
+                        title: `Deleting ${fileName}`,
+                        cancellable: false,
+                    },
+                    async (progress) => {
+                        // Execute delete script
+                        const { stdout, stderr } = await execAsync(
+                            `XCODE_PROJECT_PATH="${config.xcodeProjectPath}" PROJECT_PATH="${config.projectPath}" ruby "${context.extensionPath}/scripts/delete_from_xcode.rb" "${filePath}"`
+                        );
 
-            vscode.window.showInformationMessage(`Successfully deleted ${fileName}`);
+                        if (stderr) {
+                            console.error('Delete script stderr:', stderr);
+                        }
+                        console.log('Delete script stdout:', stdout);
 
-        } catch (error) {
-            console.error('Error in deleteFile:', error);
-            vscode.window.showErrorMessage(`Error: ${error instanceof Error ? error.message : String(error)}`);
+                        // Refresh explorer
+                        await vscode.commands.executeCommand(
+                            'workbench.files.action.refreshFilesExplorer'
+                        );
+                    }
+                );
+
+                vscode.window.showInformationMessage(
+                    `Successfully deleted ${fileName}`
+                );
+            } catch (error) {
+                console.error('Error in deleteFile:', error);
+                vscode.window.showErrorMessage(
+                    `Error: ${error instanceof Error ? error.message : String(error)}`
+                );
+            }
         }
-    });
+    );
 
     // Register command for deleting folder from Xcode
-    let deleteFolder = vscode.commands.registerCommand('xcode-integration.deleteXcodeFolder', async (uri: vscode.Uri) => {
-        try {
-            const config = await getConfiguration(context);
-            if (!config.projectPath || !config.xcodeProjectPath) {
-                throw new Error('Project paths not configured');
-            }
+    let deleteFolder = vscode.commands.registerCommand(
+        'xcode-integration.deleteXcodeFolder',
+        async (uri: vscode.Uri) => {
+            try {
+                const config = await getConfiguration(context);
+                if (!config.projectPath || !config.xcodeProjectPath) {
+                    throw new Error('Project paths not configured');
+                }
 
-            const folderPath = uri.fsPath;
+                const folderPath = uri.fsPath;
 
-            // Confirm deletion
-            const folderName = path.basename(folderPath);
-            const confirmed = await vscode.window.showWarningMessage(
-                `Are you sure you want to delete folder '${folderName}'? This will remove it and all its contents from both the filesystem and Xcode project.`,
-                { modal: true },
-                'Delete',
-                'Cancel'
-            );
-
-            if (confirmed !== 'Delete') {
-                return;
-            }
-
-            // Show progress
-            await vscode.window.withProgress({
-                location: vscode.ProgressLocation.Notification,
-                title: `Deleting ${folderName}`,
-                cancellable: false
-            }, async (progress) => {
-                // Execute delete script
-                const { stdout, stderr } = await execAsync(
-                    `XCODE_PROJECT_PATH="${config.xcodeProjectPath}" PROJECT_PATH="${config.projectPath}" ruby "${context.extensionPath}/scripts/delete_folder_from_xcode.rb" "${folderPath}"`
+                // Confirm deletion
+                const folderName = path.basename(folderPath);
+                const confirmed = await vscode.window.showWarningMessage(
+                    `Are you sure you want to delete folder '${folderName}'? This will remove it and all its contents from both the filesystem and Xcode project.`,
+                    { modal: true },
+                    'Delete',
+                    'Cancel'
                 );
 
-                if (stderr) {
-                    console.error('Delete script stderr:', stderr);
+                if (confirmed !== 'Delete') {
+                    return;
                 }
-                console.log('Delete script stdout:', stdout);
 
-                // Refresh explorer
-                await vscode.commands.executeCommand('workbench.files.action.refreshFilesExplorer');
-            });
+                // Show progress
+                await vscode.window.withProgress(
+                    {
+                        location: vscode.ProgressLocation.Notification,
+                        title: `Deleting ${folderName}`,
+                        cancellable: false,
+                    },
+                    async (progress) => {
+                        // Execute delete script
+                        const { stdout, stderr } = await execAsync(
+                            `XCODE_PROJECT_PATH="${config.xcodeProjectPath}" PROJECT_PATH="${config.projectPath}" ruby "${context.extensionPath}/scripts/delete_folder_from_xcode.rb" "${folderPath}"`
+                        );
 
-            vscode.window.showInformationMessage(`Successfully deleted folder ${folderName}`);
+                        if (stderr) {
+                            console.error('Delete script stderr:', stderr);
+                        }
+                        console.log('Delete script stdout:', stdout);
 
-        } catch (error) {
-            console.error('Error in deleteFolder:', error);
-            vscode.window.showErrorMessage(`Error: ${error instanceof Error ? error.message : String(error)}`);
+                        // Refresh explorer
+                        await vscode.commands.executeCommand(
+                            'workbench.files.action.refreshFilesExplorer'
+                        );
+                    }
+                );
+
+                vscode.window.showInformationMessage(
+                    `Successfully deleted folder ${folderName}`
+                );
+            } catch (error) {
+                console.error('Error in deleteFolder:', error);
+                vscode.window.showErrorMessage(
+                    `Error: ${error instanceof Error ? error.message : String(error)}`
+                );
+            }
         }
-    });
+    );
 
     context.subscriptions.push(newSwiftFile);
     context.subscriptions.push(newFolder);
@@ -318,4 +392,4 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(deleteFolder);
 }
 
-export function deactivate() { }
+export function deactivate() {}
