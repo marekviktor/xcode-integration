@@ -1,71 +1,102 @@
-# xcode-integration README
+# Xcode Integration
 
-This is the README for your extension "xcode-integration". After writing up a brief description, we recommend including the following sections.
+Xcode Integration is a Visual Studio Code extension that provides seamless integration with Xcode projects. This extension allows you to create, delete, and manage Swift files and folders directly from VS Code, and sync them with your Xcode project.
 
 ## Features
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
-
-For example if there is an image subfolder under your extension project workspace:
-
-\!\[feature X\]\(images/feature-x.png\)
-
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+- Create new Swift files with predefined templates.
+- Add new folders to your Xcode project.
+- Delete Swift files and folders from both the filesystem and Xcode project.
+- Auto-detect Xcode project settings.
 
 ## Requirements
 
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
+- Visual Studio Code
+- Ruby
+- Xcodeproj gem (`gem install xcodeproj`)
 
-## Extension Settings
+## Installation
 
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
+1. Clone the repository:
 
-For example:
+    ```sh
+    git clone <repository-url>
+    cd xcode-integration
+    ```
 
-This extension contributes the following settings:
+2. Install dependencies:
 
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
+    ```sh
+    npm install
+    ```
 
-## Known Issues
+3. Install the Xcodeproj gem:
 
-Calling out known issues can help limit users opening duplicate issues against your extension.
+    ```sh
+    gem install xcodeproj
+    ```
 
-## Release Notes
+## Usage
 
-Users appreciate release notes as you update your extension.
+### Create a New Swift File
 
-### 1.0.0
+1. Right-click on a folder in the VS Code Explorer.
+2. Select `Xcode -> New Swift File`.
+3. Enter the name of the new Swift file.
+4. Choose a template from the list.
+5. The new file will be created and added to your Xcode project.
 
-Initial release of ...
+### Add a New Folder
 
-### 1.0.1
+1. Right-click on a folder in the VS Code Explorer.
+2. Select `Xcode -> New Folder (Xcode)`.
+3. Enter the name of the new folder.
+4. The new folder will be created and added to your Xcode project.
 
-Fixed issue #.
+### Delete a Swift File
 
-### 1.1.0
+1. Right-click on a Swift file in the VS Code Explorer.
+2. Select `Xcode -> Delete File from Xcode Project`.
+3. Confirm the deletion.
+4. The file will be removed from both the filesystem and Xcode project.
 
-Added features X, Y, and Z.
+### Delete a Folder
 
----
+1. Right-click on a folder in the VS Code Explorer.
+2. Select `Xcode -> Delete Folder from Xcode Project`.
+3. Confirm the deletion.
+4. The folder and its contents will be removed from both the filesystem and Xcode project.
 
-## Following extension guidelines
+## Configuration
 
-Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
+You can configure the extension settings in your VS Code settings:
 
-* [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
+- `xcodeIntegration.projectPath`: Path to your project root folder.
+- `xcodeIntegration.xcodeProjectPath`: Path to your .xcodeproj file.
+- `xcodeIntegration.authorName`: Author name for file headers.
 
-## Working with Markdown
+## Development
 
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
+To build and run the extension locally:
 
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
+1. Compile the extension:
 
-## For more information
+    ```sh
+    npm run compile
+    ```
 
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
+2. Launch the extension:
 
-**Enjoy!**
+    ```sh
+    code .
+    ```
+
+3. Press `F5` to open a new VS Code window with the extension loaded.
+
+## Contributing
+
+Contributions are welcome! Please open an issue or submit a pull request.
+
+## License
+
+This project is licensed under the MIT License.
