@@ -1,15 +1,35 @@
 {
     "name": "xcode-integration",
-    "displayName": "xcode-integration",
+    "displayName": "Xcode Integration",
     "description": " Xcode integration for Swift projects",
     "version": "0.0.1",
-    "publisher": "viktorlabs",
+    "publisher": "viktorproduction",
     "engines": {
         "vscode": "^1.96.0"
     },
     "categories": [
         "Other"
     ],
+    "keywords": [
+        "xcode",
+        "swift",
+        "ios",
+        "macos",
+        "project-management",
+        "xcodeproj",
+        "ruby",
+        "xcode-integration"
+    ],
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/marekviktor/xcode-integration"
+    },
+    "homepage": "https://github.com/marekviktor/xcode-integration/blob/main/README.md",
+    "bugs": {
+        "url": "https://github.com/marekviktor/xcode-integration/issues"
+    },
+    "icon": "images/icon.png",
+    "preview": true,
     "activationEvents": [
         "workspaceContains:**/*.swift"
     ],
