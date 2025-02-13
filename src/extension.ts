@@ -433,7 +433,7 @@ export function activate(context: vscode.ExtensionContext) {
 
                 // Add to Xcode
                 await executeScript(
-                    `XCODE_AUTHOR_NAME="${config.authorName}" XCODE_PROJECT_PATH="${config.xcodeProjectPath}" PROJECT_PATH="${config.projectPath}" ruby "${context.extensionPath}/scripts/add_to_xcode.rb" "${fullPath}" "${selectedTemplate}"`
+                    `XCODE_AUTHOR_NAME="${config.authorName}" XCODE_PROJECT_PATH="${config.xcodeProjectPath}" PROJECT_PATH="${config.projectPath}" ruby "${context.extensionPath}/scripts/add_file_to_xcode.rb" "${fullPath}" "${selectedTemplate}"`
                 );
                 // Open the new file
                 const doc = await vscode.workspace.openTextDocument(fullPath);
@@ -548,7 +548,7 @@ export function activate(context: vscode.ExtensionContext) {
                     async (progress) => {
                         // Execute delete script
                         await executeScript(
-                            `XCODE_PROJECT_PATH="${config.xcodeProjectPath}" PROJECT_PATH="${config.projectPath}" ruby "${context.extensionPath}/scripts/delete_from_xcode.rb" "${filePath}"`
+                            `XCODE_PROJECT_PATH="${config.xcodeProjectPath}" PROJECT_PATH="${config.projectPath}" ruby "${context.extensionPath}/scripts/delete_file_from_xcode.rb" "${filePath}"`
                         );
 
                         // Refresh explorer

@@ -1,6 +1,6 @@
 require 'xcodeproj'
 
-def delete_from_xcode(file_path)
+def delete_file_from_xcode(file_path)
   begin
     # Path to your .xcodeproj file
     project_path = ENV['XCODE_PROJECT_PATH']
@@ -61,4 +61,4 @@ if ARGV.length != 1
   exit 1
 end
 
-delete_from_xcode(ARGV[0])
+delete_file_from_xcode(ARGV[0])
