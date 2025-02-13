@@ -13,6 +13,7 @@ interface XcodeConfig {
 }
 
 let outputChannel: vscode.OutputChannel;
+let movePromiseResolve: (() => void) | null = null;
 
 async function findXcodeProject(startPath: string): Promise<string | null> {
     try {
@@ -124,14 +125,195 @@ async function executeScript(command: string): Promise<void> {
     }
 }
 
+// Or if you want to handle both files and folders consistently:
+function removeLastPathComponent(inputPath: string): string {
+    // Remove trailing slash if exists
+    const normalizedPath = inputPath.replace(/\/$/, '');
+    return path.dirname(normalizedPath);
+}
+
 export function activate(context: vscode.ExtensionContext) {
     outputChannel = vscode.window.createOutputChannel('Xcode Integration');
     context.subscriptions.push(outputChannel);
+
+    interface BufferEntry {
+        path: string;
+        timestamp: number;
+    }
+    // Update the buffer declarations
+    let createBuffer: { [key: string]: BufferEntry } = {};
+    let deleteBuffer: { [key: string]: BufferEntry } = {};
+    let processingTimeout: NodeJS.Timeout | null = null;
+
+    // Add buffer cleanup function
+    const cleanupBuffers = () => {
+        const now = Date.now();
+        const BUFFER_TIMEOUT = 1000; // 1 second timeout
+
+        // Cleanup old entries
+        Object.keys(createBuffer).forEach((key) => {
+            if (now - createBuffer[key].timestamp > BUFFER_TIMEOUT) {
+                delete createBuffer[key];
+            }
+        });
+
+        Object.keys(deleteBuffer).forEach((key) => {
+            if (now - deleteBuffer[key].timestamp > BUFFER_TIMEOUT) {
+                delete deleteBuffer[key];
+            }
+        });
+    };
+
+    // Update the processMove function
+    const processMove = async () => {
+        cleanupBuffers(); // Clean up old entries first
+
+        for (const newPath of Object.keys(createBuffer)) {
+            const fileName = path.basename(newPath);
+            const possibleOldPaths = Object.keys(deleteBuffer).filter(
+                (oldPath) => path.basename(oldPath) === fileName
+            );
+
+            if (possibleOldPaths.length === 1) {
+                const oldPath = possibleOldPaths[0];
+                const timeDiff = Math.abs(
+                    createBuffer[newPath].timestamp -
+                        deleteBuffer[oldPath].timestamp
+                );
+
+                // Only process if events happened within 500ms of each other
+                if (timeDiff > 500) {
+                    continue;
+                }
+
+                const oldPathWithoutLastComponent =
+                    removeLastPathComponent(oldPath);
+                const newPathWithoutLastComponent =
+                    removeLastPathComponent(newPath);
+
+                if (
+                    oldPathWithoutLastComponent === newPathWithoutLastComponent
+                ) {
+                    // Clear the buffers for this entry since it's not a move
+                    delete createBuffer[newPath];
+                    delete deleteBuffer[oldPath];
+                    continue;
+                }
+
+                try {
+                    const config = await getConfiguration(context);
+                    if (!config.projectPath || !config.xcodeProjectPath) {
+                        continue;
+                    }
+
+                    await vscode.window.withProgress(
+                        {
+                            location: vscode.ProgressLocation.Notification,
+                            title: `Updating Xcode project...`,
+                            cancellable: false,
+                        },
+                        async (progress) => {
+                            try {
+                                await executeScript(
+                                    `XCODE_PROJECT_PATH="${config.xcodeProjectPath}" PROJECT_PATH="${config.projectPath}" ruby "${context.extensionPath}/scripts/move_in_xcode.rb" "${oldPath}" "${newPath}"`
+                                );
+                            } catch (error) {
+                                console.error('Script execution error:', error);
+                                throw error;
+                            }
+                        }
+                    );
+
+                    // Clear the processed paths
+                    delete createBuffer[newPath];
+                    delete deleteBuffer[oldPath];
+
+                    vscode.window.showInformationMessage(
+                        `Successfully moved ${path.basename(oldPath)}`
+                    );
+                } catch (error) {
+                    console.error('Error handling move:', error);
+                    vscode.window.showErrorMessage(
+                        `Error updating Xcode project: ${error instanceof Error ? error.message : String(error)}`
+                    );
+                }
+            }
+        }
+
+        // Final cleanup
+        cleanupBuffers();
+
+        if (
+            Object.keys(createBuffer).length === 0 &&
+            Object.keys(deleteBuffer).length === 0
+        ) {
+            if (movePromiseResolve) {
+                movePromiseResolve();
+            }
+        }
+    };
+
+    // Update the scheduling function
+    const scheduleProcessing = () => {
+        if (processingTimeout) {
+            clearTimeout(processingTimeout);
+        }
+        processingTimeout = setTimeout(async () => {
+            await processMove();
+            processingTimeout = null;
+        }, 100);
+    };
+
+    const watcher = vscode.workspace.createFileSystemWatcher('**/*.swift');
+    const folderWatcher = vscode.workspace.createFileSystemWatcher('**/');
+
+    // Update the watchers
+    watcher.onDidCreate((uri) => {
+        createBuffer[uri.fsPath] = {
+            path: uri.fsPath,
+            timestamp: Date.now(),
+        };
+        scheduleProcessing();
+    });
+
+    watcher.onDidDelete((uri) => {
+        deleteBuffer[uri.fsPath] = {
+            path: uri.fsPath,
+            timestamp: Date.now(),
+        };
+        scheduleProcessing();
+    });
+
+    folderWatcher.onDidCreate((uri) => {
+        createBuffer[uri.fsPath] = {
+            path: uri.fsPath,
+            timestamp: Date.now(),
+        };
+        scheduleProcessing();
+    });
+
+    folderWatcher.onDidDelete((uri) => {
+        deleteBuffer[uri.fsPath] = {
+            path: uri.fsPath,
+            timestamp: Date.now(),
+        };
+        scheduleProcessing();
+    });
+
+    context.subscriptions.push(watcher);
+    context.subscriptions.push(folderWatcher);
 
     // Handle rename events
     context.subscriptions.push(
         vscode.workspace.onDidRenameFiles(async (event) => {
             for (const { oldUri, newUri } of event.files) {
+                const isMove =
+                    path.dirname(oldUri.fsPath) !== path.dirname(newUri.fsPath);
+
+                // Skip if it's a move operation - let the move handler deal with it
+                if (isMove) {
+                    continue;
+                }
                 try {
                     const config = await getConfiguration(context);
                     if (!config.projectPath || !config.xcodeProjectPath) {
