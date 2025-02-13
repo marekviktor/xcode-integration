@@ -5,6 +5,7 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 
 const execAsync = promisify(exec);
+let isUserRename = false; // Flag to track user-initiated renames
 
 interface XcodeConfig {
     projectPath: string;
@@ -116,8 +117,12 @@ async function getConfiguration(
 
 async function executeScript(command: string): Promise<void> {
     const { stdout, stderr } = await execAsync(command);
-    if (stdout) { outputChannel.appendLine(stdout); }
-    if (stderr) { outputChannel.appendLine(stderr); }
+    if (stdout) {
+        outputChannel.appendLine(stdout);
+    }
+    if (stderr) {
+        outputChannel.appendLine(stderr);
+    }
 }
 
 export function activate(context: vscode.ExtensionContext) {
@@ -330,9 +335,9 @@ export function activate(context: vscode.ExtensionContext) {
         }
     );
 
-    // Register command for deleting folder from Xcode
+    // Register command for deleting folder
     let deleteFolder = vscode.commands.registerCommand(
-        'xcode-integration.deleteXcodeFolder',
+        'xcode-integration.deleteFolder',
         async (uri: vscode.Uri) => {
             try {
                 const config = await getConfiguration(context);
@@ -345,7 +350,7 @@ export function activate(context: vscode.ExtensionContext) {
                 // Confirm deletion
                 const folderName = path.basename(folderPath);
                 const confirmed = await vscode.window.showWarningMessage(
-                    `Are you sure you want to delete folder '${folderName}'? This will remove it and all its contents from both the filesystem and Xcode project.`,
+                    `Are you sure you want to delete folder '${folderName}' and all its contents? This will remove it from both the filesystem and Xcode project.`,
                     { modal: true },
                     'Delete',
                     'Cancel'
@@ -353,6 +358,25 @@ export function activate(context: vscode.ExtensionContext) {
 
                 if (confirmed !== 'Delete') {
                     return;
+                }
+
+                // Count files to be deleted
+                const files = await vscode.workspace.findFiles(
+                    new vscode.RelativePattern(folderPath, '**/*.swift')
+                );
+
+                // Show warning if many files will be deleted
+                if (files.length > 5) {
+                    const confirmMany = await vscode.window.showWarningMessage(
+                        `This will delete ${files.length} Swift files. Are you sure?`,
+                        { modal: true },
+                        'Delete',
+                        'Cancel'
+                    );
+
+                    if (confirmMany !== 'Delete') {
+                        return;
+                    }
                 }
 
                 // Show progress
@@ -365,7 +389,7 @@ export function activate(context: vscode.ExtensionContext) {
                     async (progress) => {
                         // Execute delete script
                         await executeScript(
-                            `XCODE_PROJECT_PATH="${config.xcodeProjectPath}" PROJECT_PATH="${config.projectPath}" ruby "${context.extensionPath}/scripts/delete_folder_from_xcode.rb" "${folderPath}"`
+                            `XCODE_PROJECT_PATH="${config.xcodeProjectPath}" PROJECT_PATH="${config.projectPath}" ruby "${context.extensionPath}/scripts/delete_group_from_xcode.rb" "${folderPath}"`
                         );
 
                         // Refresh explorer

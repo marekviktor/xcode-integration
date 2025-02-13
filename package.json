@@ -38,7 +38,7 @@
                 "category": "Xcode"
             },
             {
-                "command": "xcode-integration.deleteXcodeFolder",
+                "command": "xcode-integration.deleteFolder",
                 "title": "Delete Folder from Xcode Project",
                 "category": "Xcode"
             }
@@ -61,7 +61,7 @@
                     "when": "resourceExtname == .swift"
                 },
                 {
-                    "command": "xcode-integration.deleteXcodeFolder",
+                    "command": "xcode-integration.deleteFolder",
                     "group": "1_modification@1",
                     "when": "explorerResourceIsFolder"
                 }
