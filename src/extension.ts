@@ -1,8 +1,9 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import { exec } from 'child_process';
+import { exec, execSync } from 'child_process';
 import { promisify } from 'util';
+import { platform } from 'os';
 
 const execAsync = promisify(exec);
 
@@ -132,7 +133,57 @@ function removeLastPathComponent(inputPath: string): string {
     return path.dirname(normalizedPath);
 }
 
-export function activate(context: vscode.ExtensionContext) {
+async function checkDependencies(): Promise<void> {
+    try {
+        execSync('gem list xcodeproj -i', { stdio: 'ignore' });
+    } catch (error) {
+        const answer = await vscode.window.showInformationMessage(
+            'xcodeproj gem is required but not installed. Would you like to install it?',
+            'Yes',
+            'No'
+        );
+
+        if (answer === 'Yes') {
+            try {
+                await vscode.window.withProgress(
+                    {
+                        location: vscode.ProgressLocation.Notification,
+                        title: 'Installing xcodeproj...',
+                        cancellable: false,
+                    },
+                    async () => {
+                        execSync('gem install xcodeproj --user-install', {
+                            stdio: 'inherit',
+                        });
+                    }
+                );
+                vscode.window.showInformationMessage(
+                    'xcodeproj installed successfully'
+                );
+            } catch (installError) {
+                vscode.window.showErrorMessage(
+                    'Failed to install xcodeproj. Please install manually: gem install xcodeproj'
+                );
+            }
+        }
+    }
+}
+
+export async function activate(context: vscode.ExtensionContext) {
+    if (platform() === 'darwin') {
+        try {
+            await checkDependencies();
+        } catch (error) {
+            vscode.window.showErrorMessage(
+                'Failed to verify xcodeproj installation.'
+            );
+        }
+    } else {
+        vscode.window.showErrorMessage(
+            'This extension is only available on macOS.'
+        );
+    }
+
     outputChannel = vscode.window.createOutputChannel('Xcode Integration');
     context.subscriptions.push(outputChannel);
 
