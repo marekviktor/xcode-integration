@@ -12,6 +12,8 @@ interface XcodeConfig {
     authorName: string;
 }
 
+let outputChannel: vscode.OutputChannel;
+
 async function findXcodeProject(startPath: string): Promise<string | null> {
     try {
         const files = await fs.promises.readdir(startPath);
@@ -112,7 +114,16 @@ async function getConfiguration(
     };
 }
 
+async function executeScript(command: string): Promise<void> {
+    const { stdout, stderr } = await execAsync(command);
+    if (stdout) { outputChannel.appendLine('Script stdout: ' + stdout); }
+    if (stderr) { outputChannel.appendLine('Script stderr: ' + stderr); }
+}
+
 export function activate(context: vscode.ExtensionContext) {
+    outputChannel = vscode.window.createOutputChannel('Xcode Integration');
+    context.subscriptions.push(outputChannel);
+
     // Register command for new Swift file
     let newSwiftFile = vscode.commands.registerCommand(
         'xcode-integration.newSwiftFile',
@@ -181,7 +192,7 @@ export function activate(context: vscode.ExtensionContext) {
                 }
 
                 // Add to Xcode
-                await execAsync(
+                await executeScript(
                     `XCODE_AUTHOR_NAME="${config.authorName}" XCODE_PROJECT_PATH="${config.xcodeProjectPath}" PROJECT_PATH="${config.projectPath}" ruby "${context.extensionPath}/scripts/add_to_xcode.rb" "${fullPath}" "${selectedTemplate}"`
                 );
                 // Open the new file
@@ -247,7 +258,7 @@ export function activate(context: vscode.ExtensionContext) {
                 fs.mkdirSync(fullPath, { recursive: true });
 
                 // Add to Xcode
-                await execAsync(
+                await executeScript(
                     `XCODE_AUTHOR_NAME="${config.authorName}" XCODE_PROJECT_PATH="${config.xcodeProjectPath}" PROJECT_PATH="${config.projectPath}" ruby "${context.extensionPath}/scripts/add_group_to_xcode.rb" "${fullPath}"`
                 );
 
@@ -296,14 +307,9 @@ export function activate(context: vscode.ExtensionContext) {
                     },
                     async (progress) => {
                         // Execute delete script
-                        const { stdout, stderr } = await execAsync(
+                        await executeScript(
                             `XCODE_PROJECT_PATH="${config.xcodeProjectPath}" PROJECT_PATH="${config.projectPath}" ruby "${context.extensionPath}/scripts/delete_from_xcode.rb" "${filePath}"`
                         );
-
-                        if (stderr) {
-                            console.error('Delete script stderr:', stderr);
-                        }
-                        console.log('Delete script stdout:', stdout);
 
                         // Refresh explorer
                         await vscode.commands.executeCommand(
@@ -358,14 +364,9 @@ export function activate(context: vscode.ExtensionContext) {
                     },
                     async (progress) => {
                         // Execute delete script
-                        const { stdout, stderr } = await execAsync(
+                        await executeScript(
                             `XCODE_PROJECT_PATH="${config.xcodeProjectPath}" PROJECT_PATH="${config.projectPath}" ruby "${context.extensionPath}/scripts/delete_folder_from_xcode.rb" "${folderPath}"`
                         );
-
-                        if (stderr) {
-                            console.error('Delete script stderr:', stderr);
-                        }
-                        console.log('Delete script stdout:', stdout);
 
                         // Refresh explorer
                         await vscode.commands.executeCommand(
