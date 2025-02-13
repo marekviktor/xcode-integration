@@ -116,8 +116,8 @@ async function getConfiguration(
 
 async function executeScript(command: string): Promise<void> {
     const { stdout, stderr } = await execAsync(command);
-    if (stdout) { outputChannel.appendLine('Script stdout: ' + stdout); }
-    if (stderr) { outputChannel.appendLine('Script stderr: ' + stderr); }
+    if (stdout) { outputChannel.appendLine(stdout); }
+    if (stderr) { outputChannel.appendLine(stderr); }
 }
 
 export function activate(context: vscode.ExtensionContext) {
