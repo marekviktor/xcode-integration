@@ -95,3 +95,6 @@ A VSCode extension that provides integration with Xcode projects, enabling seaml
 If you like the extension, please consider supporting me:
 
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/marekviktor)
+
+## License
+This project is licensed under the [MIT License](LICENSE) - see the [LICENSE](LICENSE) file for details.

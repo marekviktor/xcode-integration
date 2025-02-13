@@ -30,6 +30,7 @@
     },
     "icon": "images/icon.png",
     "preview": true,
+    "license": "MIT",
     "activationEvents": [
         "workspaceContains:**/*.swift"
     ],
