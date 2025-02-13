@@ -5,7 +5,6 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 
 const execAsync = promisify(exec);
-let isUserRename = false; // Flag to track user-initiated renames
 
 interface XcodeConfig {
     projectPath: string;
@@ -128,6 +127,60 @@ async function executeScript(command: string): Promise<void> {
 export function activate(context: vscode.ExtensionContext) {
     outputChannel = vscode.window.createOutputChannel('Xcode Integration');
     context.subscriptions.push(outputChannel);
+
+    // Handle rename events
+    context.subscriptions.push(
+        vscode.workspace.onDidRenameFiles(async (event) => {
+            for (const { oldUri, newUri } of event.files) {
+                try {
+                    const config = await getConfiguration(context);
+                    if (!config.projectPath || !config.xcodeProjectPath) {
+                        continue;
+                    }
+
+                    const oldPath = oldUri.fsPath;
+                    const newPath = newUri.fsPath;
+
+                    // Check if it's a Swift file or folder
+                    const isSwiftFile = oldPath.endsWith('.swift');
+                    const isFolder = !path.extname(oldPath);
+
+                    if (!isSwiftFile && !isFolder) {
+                        continue;
+                    }
+
+                    // Show progress
+                    await vscode.window.withProgress(
+                        {
+                            location: vscode.ProgressLocation.Notification,
+                            title: `Updating Xcode project...`,
+                            cancellable: false,
+                        },
+                        async (progress) => {
+                            // Execute rename script
+                            await executeScript(
+                                `XCODE_PROJECT_PATH="${config.xcodeProjectPath}" PROJECT_PATH="${config.projectPath}" ruby "${context.extensionPath}/scripts/rename_in_xcode.rb" "${oldPath}" "${newPath}"`
+                            );
+
+                            // Refresh explorer
+                            await vscode.commands.executeCommand(
+                                'workbench.files.action.refreshFilesExplorer'
+                            );
+                        }
+                    );
+
+                    vscode.window.showInformationMessage(
+                        `Successfully renamed`
+                    );
+                } catch (error) {
+                    console.error('Error handling rename:', error);
+                    vscode.window.showErrorMessage(
+                        `Error updating Xcode project`
+                    );
+                }
+            }
+        })
+    );
 
     // Register command for new Swift file
     let newSwiftFile = vscode.commands.registerCommand(

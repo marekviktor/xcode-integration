@@ -1,3 +1,4 @@
+# scripts/rename_in_xcode.rb
 require 'xcodeproj'
 
 def rename_in_xcode(old_path, new_path)
@@ -16,28 +17,36 @@ def rename_in_xcode(old_path, new_path)
     old_relative_path = Pathname.new(old_path).relative_path_from(Pathname.new(project_dir)).to_s
     new_relative_path = Pathname.new(new_path).relative_path_from(Pathname.new(project_dir)).to_s
 
-    is_directory = File.directory?(old_path)
+    is_directory = File.directory?(new_path) # Use new_path as old_path might not exist anymore
 
     if is_directory
       # Handle group rename
       current_group = project.main_group
+      parent_group = project.main_group
       group_to_rename = nil
+      path_components = old_relative_path.split('/')
 
-      old_relative_path.split('/').each do |component|
+      # Navigate through the group hierarchy
+      path_components.each_with_index do |component, index|
         next_group = current_group.children.find { |child| 
-          child.path == component && child.is_a?(Xcodeproj::Project::Object::PBXGroup)
+          (child.display_name == component || child.path == component) && 
+          child.is_a?(Xcodeproj::Project::Object::PBXGroup)
         }
         
         unless next_group
-          raise "Group not found: #{component}"
+          raise "Group not found: #{component} in path: #{old_relative_path}"
         end
         
-        current_group = next_group
-        group_to_rename = next_group
+        if index == path_components.length - 1
+          group_to_rename = next_group
+        else
+          parent_group = current_group
+          current_group = next_group
+        end
       end
 
       unless group_to_rename
-        raise "Group not found in Xcode project"
+        raise "Group not found in Xcode project: #{old_relative_path}"
       end
 
       # Update group name and path
@@ -45,12 +54,16 @@ def rename_in_xcode(old_path, new_path)
       group_to_rename.name = new_name
       group_to_rename.path = new_name
 
-      # Update paths for all child files
+      # Update paths for all child files if needed
       group_to_rename.recursive_children.each do |child|
         if child.is_a?(Xcodeproj::Project::Object::PBXFileReference)
+          # Update the file reference path if necessary
           old_file_path = child.real_path.to_s
-          new_file_path = old_file_path.gsub(old_path, new_path)
-          child.path = Pathname.new(new_file_path).relative_path_from(Pathname.new(project_dir)).to_s
+          if old_file_path.start_with?(old_path)
+            new_file_path = old_file_path.sub(old_path, new_path)
+            relative_path = Pathname.new(new_file_path).relative_path_from(Pathname.new(project_dir)).to_s
+            child.path = File.basename(relative_path)
+          end
         end
       end
 
@@ -68,20 +81,19 @@ def rename_in_xcode(old_path, new_path)
         raise "File not found in Xcode project: #{old_path}"
       end
 
-      # Update file reference
-      file_ref.path = File.basename(new_path)
+      # Update file reference with new name
+      new_name = File.basename(new_path)
+      file_ref.path = new_name
     end
 
     # Save the project
     project.save
 
-    # Perform filesystem rename
-    FileUtils.mv(old_path, new_path)
-
-    puts "Successfully renamed: #{old_relative_path} to #{new_relative_path}"
+    puts "Successfully updated Xcode project: #{old_relative_path} to #{new_relative_path}"
 
   rescue StandardError => e
     puts "Error: #{e.message}"
+    puts e.backtrace.join("\n") # Add stack trace for debugging
     exit 1
   end
 end

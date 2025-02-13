@@ -10,7 +10,9 @@
     "categories": [
         "Other"
     ],
-    "activationEvents": [],
+    "activationEvents": [
+        "workspaceContains:**/*.swift"
+    ],
     "main": "./dist/extension.js",
     "contributes": {
         "keybindings": [
